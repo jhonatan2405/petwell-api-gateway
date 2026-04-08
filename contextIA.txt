@@ -1,0 +1,237 @@
+=========================================================
+  PetWell — API Gateway | Documento de ContextIA
+  Última actualización: 2026-03-25 (v1.6)
+=========================================================
+
+Este documento resume el estado completo del API Gateway
+dentro de la plataforma PetWell.
+Está pensado para dar contexto a una IA asistente o a un
+nuevo desarrollador que ingrese al proyecto.
+
+─────────────────────────────────────────────────────────
+1. ¿QUÉ ES ESTE SERVICIO?
+─────────────────────────────────────────────────────────
+El API Gateway es el punto de entrada único para el
+frontend de la plataforma PetWell. Actúa como proxy
+reverso que redirige las peticiones HTTP hacia el
+microservicio correspondiente.
+
+El frontend NO debe conocer ni conectarse directamente
+a los microservicios. Toda comunicación pasa por el
+gateway en el puerto 3001.
+
+─────────────────────────────────────────────────────────
+2. TECNOLOGÍAS UTILIZADAS
+─────────────────────────────────────────────────────────
+- Runtime     : Node.js (>=18)
+- Lenguaje    : JavaScript (CommonJS)
+- Framework   : Express
+- Proxy       : http-proxy-middleware
+- Seguridad   : helmet, cors
+- Logging     : morgan
+
+─────────────────────────────────────────────────────────
+3. ARQUITECTURA DEL PROYECTO
+─────────────────────────────────────────────────────────
+api-gateway/
+├── src/
+│   ├── server.js              ← Bootstrap Express + registro de rutas
+│   └── routes/
+│       ├── user.routes.js         ← Proxy → User Service (:3003)
+│       │                             Maneja /api/v1/users Y /api/v1/clinics
+│       ├── pet.routes.js          ← Proxy → Pet Service (:3002)
+│       │                             Maneja /api/v1/pets
+│       ├── ehr.routes.js          ← Proxy → EHR Service (:3004)
+│       │                             Maneja /api/v1/ehr
+│       └── appointment.routes.js  ← Proxy → Appointment Service (:3005)
+│                                     Maneja /api/v1/appointments, /schedules,
+│                                              /vetblocks, /waitlist
+└── .env
+
+─────────────────────────────────────────────────────────
+4. MICROSERVICIOS CONECTADOS
+─────────────────────────────────────────────────────────
+  User Service         →  http://localhost:3003
+  Pet Service          →  http://localhost:3002
+  EHR Service          →  http://localhost:3004
+  Appointment Service  →  http://localhost:3005
+
+─────────────────────────────────────────────────────────
+5. RUTAS MANEJADAS POR EL GATEWAY
+─────────────────────────────────────────────────────────
+Flujo general:
+
+  Frontend (:3000)
+      ↓
+  API Gateway (:3001)
+      ↓ (proxy reverso)
+  Microservicio correspondiente
+
+Flujo especifíco EHR:
+
+  Frontend
+   → /api/v1/ehr (e.g. /permissions o /audit)
+   → Gateway 3001
+   → EHR Service 3004
+
+Flujo de Consentimiento (Permissions):
+  1. Frontend solicita o verifica permisos.
+  2. Gateway intercepta y loguea: `[Gateway] → EHR GET /permissions/:petId`
+  3. Redirige a EHR Service puerto 3004.
+
+Flujo de Auditoría (Audit):
+  1. Frontend consulta el historial de auditoría de historias clínicas.
+  2. Gateway intercepta y loguea: `[Gateway] → EHR GET /audit/:petId`
+  3. Redirige a EHR Service puerto 3004.
+
+Flujo de autenticación (login):
+
+  1. Preflight CORS
+     Browser
+       ↓  OPTIONS /api/v1/users/login
+     API Gateway  →  HTTP 204 (resuelto en el gateway)
+
+  2. Petición real
+     Browser
+       ↓  POST /api/v1/users/login
+     API Gateway
+       ↓  (proxy transparente, body intacto)
+     User Service (:3003)
+       ↓
+     JWT response  →  API Gateway  →  Browser
+
+Tabla de rutas:
+
+  Ruta del Gateway              Destino    Microservicio
+  ──────────────────────────────────────────────────────────────────
+  /api/v1/users/**          →  :3003      User Service
+  /api/v1/clinics/**        →  :3003      User Service
+  /api/v1/pets/**           →  :3002      Pet Service
+  /api/v1/ehr/**            →  :3004      EHR Service
+  /api/v1/appointments/**   →  :3005      Appointment Service
+  /api/v1/schedules/**      →  :3005      Appointment Service
+  /api/v1/vetblocks/**      →  :3005      Appointment Service
+  /api/v1/waitlist/**       →  :3005      Appointment Service
+
+Rutas de clínicas soportadas:
+  GET    /api/v1/clinics           → lista todas las clínicas
+  GET    /api/v1/clinics/:id       → perfil de una clínica
+  GET    /api/v1/clinics/:id/staff → staff de una clínica
+
+Rutas de EHR (Historia Clínica) soportadas a través de proxy genérico `/api/v1/ehr/**`:
+  (Sub-rutas manejadas por EHR Service: /permissions, /audit, /health, etc.)
+  GET    /api/v1/ehr/permissions/:petId  → verifica permisos de acceso
+  GET    /api/v1/ehr/audit/:petId        → historial de auditoría
+
+
+Health check del propio Gateway:
+  GET    /health   → { status: "ok", gateway: "PetWell API Gateway", port }
+
+─────────────────────────────────────────────────────────
+6. COMPORTAMIENTO EN ERRORES
+─────────────────────────────────────────────────────────
+Si un microservicio no está disponible el gateway responde:
+  HTTP 502
+  { "success": false, "message": "<Servicio> no disponible" }
+
+Si una ruta no existe en el gateway:
+  HTTP 404
+  { "success": false, "message": "Route not found" }
+
+─────────────────────────────────────────────────────────
+7. VARIABLES DE ENTORNO
+─────────────────────────────────────────────────────────
+PORT=3001
+NODE_ENV=development
+USER_SERVICE_URL=http://localhost:3003
+PET_SERVICE_URL=http://localhost:3002
+EHR_SERVICE_URL=http://localhost:3004
+APPOINTMENT_SERVICE_URL=http://localhost:3005
+ALLOWED_ORIGINS=http://localhost:3000
+
+─────────────────────────────────────────────────────────
+8. CÓMO EJECUTAR EL SERVICIO
+─────────────────────────────────────────────────────────
+1. Instalar dependencias:
+     npm install
+
+2. Configurar variables de entorno:
+     Copia .env.example → .env y completa los valores.
+
+3. Iniciar en modo desarrollo:
+     npm run dev
+
+4. Verificar:
+     curl http://localhost:3001/health
+
+─────────────────────────────────────────────────────────
+9. ORDEN DE INICIO DE SERVICIOS
+─────────────────────────────────────────────────────────
+Para que el sistema funcione correctamente, iniciar en
+este orden:
+
+  1. User Service         (puerto 3003)
+  2. Pet Service          (puerto 3002)
+  3. EHR Service          (puerto 3004)
+  4. Appointment Service  (puerto 3005)
+  5. API Gateway          (puerto 3001)
+  6. Frontend             (puerto 3000)
+
+─────────────────────────────────────────────────────────
+CHANGELOG
+─────────────────────────────────────────────────────────
+v1.6 — 2026-03-25
+  * Proxy para Appointment Service (:3005).
+  * Nuevo archivo: src/routes/appointment.routes.js
+  * Rutas añadidas: /api/v1/appointments, /api/v1/schedules,
+    /api/v1/vetblocks, /api/v1/waitlist
+  * server.js: import y mount de appointmentRoutes.
+  * .env: APPOINTMENT_SERVICE_URL=http://localhost:3005
+
+v1.5 — 2026-03-21
+  * Debug y robustez en gateway.
+  * Middleware global que loguea `[Gateway] METHOD URL` y el header
+    Authorization en cada petición, facilitando la verificación de
+    reenvío de JWT.
+  * onError añadido al proxy EHR (consistente con pet.routes.js):
+    responde HTTP 502 con JSON `{ success: false, message: ... }`
+    en lugar de dejar caer la conexión.
+
+v1.4 — 2026-03-21
+  * EHR seguridad extendida.
+  * Añadido logging explícito para las peticiones EHR.
+  * Documentados flujos de auditoría y consentimiento.
+
+v1.3 — 2026-03-21
+  * Agregado proxy para EHR Service (/api/v1/ehr → 3004).
+
+v1.2 — 2026-03-16
+  * Fix proxy POST requests.
+    Se corrigió la configuración del proxy del API Gateway
+    para permitir correctamente peticiones POST y OPTIONS
+    hacia el User Service, lo que habilita el flujo de
+    autenticación desde el frontend.
+  * express.json() movido después de las rutas de proxy
+    para que el body stream llegue intacto al microservicio.
+  * Añadido hook onProxyReq que elimina el header
+    content-length antes de reenviar la petición,
+    evitando timeouts en peticiones POST.
+  * pet.routes.js refactorizado de middleware plano a
+    Express Router (consistente con user.routes.js).
+  * CORS actualizado: methods incluye GET, POST, PUT,
+    PATCH, DELETE, OPTIONS. Preflight respondido con
+    app.options("*", cors()).
+
+v1.1 — 2026-03-16
+  * Añadido proxy /api/v1/clinics → User Service.
+  * user.routes.js refactorizado a Express Router para
+    manejar múltiples rutas (/api/v1/users y /api/v1/clinics)
+    ambas apuntando al User Service (puerto 3003).
+  * server.js actualizado para montar el router en "/".
+  * Creado contextIA.txt del API Gateway.
+
+v1.0 — 2026-03-16
+  * Implementación inicial del API Gateway.
+  * Proxy /api/v1/users → User Service.
+  * Proxy /api/v1/pets  → Pet Service.
+=========================================================
