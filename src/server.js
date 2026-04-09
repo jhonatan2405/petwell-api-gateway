@@ -8,7 +8,7 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
-// ─── URLs de microservicios (con fallback a localhost para desarrollo local) ──
+// ─── URLs de microservicios ───────────────────────────────────────────────────
 const USER_SERVICE_URL =
   process.env.USER_SERVICE_URL?.startsWith("http")
     ? process.env.USER_SERVICE_URL
@@ -59,7 +59,7 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions)); // preflight
+app.options("*", cors(corsOptions));
 
 // ─── Middlewares generales ────────────────────────────────────────────────────
 app.use(helmet());
@@ -75,16 +75,11 @@ app.get("/health", (_req, res) =>
   res.json({ status: "ok", gateway: "PetWell API Gateway", port: PORT })
 );
 
-// ─── Factory de proxy con pathFilter explícito ───────────────────────────────
-// Usando pathFilter dentro de las opciones en lugar de app.use('/path', proxy)
-// Esto hace que:
-//   1. HPM muestre la ruta correcta en los logs: [HPM] Proxy created: /api/v1/auth -> ...
-//   2. El path completo llegue intacto al microservicio de destino
-function makeProxy(pathFilter, target, label) {
-  return createProxyMiddleware({
+// ─── Helper: opciones comunes del proxy ──────────────────────────────────────
+function proxyOptions(target, label) {
+  return {
     target,
     changeOrigin: true,
-    pathFilter,           // ← HPM filtra por esta ruta, no Express
     on: {
       proxyReq: (proxyReq) => {
         proxyReq.removeHeader("content-length");
@@ -94,26 +89,31 @@ function makeProxy(pathFilter, target, label) {
         res.status(502).json({ success: false, message: `${label} no disponible` });
       },
     },
-  });
+  };
 }
 
-// ─── Proxies — montados en app.use(proxy) SIN path prefix en Express ─────────
+// ─── Proxies — un proxy por ruta, path base explícito en app.use ──────────────
+// NOTA: HTTP Proxy Middleware reporta "[HPM] Proxy created: / -> ..."
+// cuando se usa app.use('/path', proxy). Eso es comportamiento normal de HPM:
+// Express recorta el prefix y HPM se ve a sí mismo montado en "/".
+// El routing ES correcto — solo el mensaje de log es relativo.
+
 // User Service
-app.use(makeProxy("/api/v1/auth/**",    USER_SERVICE_URL, "Auth"));
-app.use(makeProxy("/api/v1/users/**",   USER_SERVICE_URL, "User Service"));
-app.use(makeProxy("/api/v1/clinics/**", USER_SERVICE_URL, "Clinics"));
+app.use("/api/v1/auth",    createProxyMiddleware(proxyOptions(USER_SERVICE_URL, "Auth")));
+app.use("/api/v1/users",   createProxyMiddleware(proxyOptions(USER_SERVICE_URL, "User Service")));
+app.use("/api/v1/clinics", createProxyMiddleware(proxyOptions(USER_SERVICE_URL, "Clinics")));
 
 // Pet Service
-app.use(makeProxy("/api/v1/pets/**",    PET_SERVICE_URL, "Pet Service"));
+app.use("/api/v1/pets",    createProxyMiddleware(proxyOptions(PET_SERVICE_URL, "Pet Service")));
 
 // EHR Service
-app.use(makeProxy("/api/v1/ehr/**",     EHR_SERVICE_URL, "EHR Service"));
+app.use("/api/v1/ehr",     createProxyMiddleware(proxyOptions(EHR_SERVICE_URL, "EHR Service")));
 
 // Appointment Service
-app.use(makeProxy("/api/v1/appointments/**", APPOINTMENT_SERVICE_URL, "Appointment Service"));
-app.use(makeProxy("/api/v1/schedules/**",    APPOINTMENT_SERVICE_URL, "Schedules"));
-app.use(makeProxy("/api/v1/vetblocks/**",    APPOINTMENT_SERVICE_URL, "Vetblocks"));
-app.use(makeProxy("/api/v1/waitlist/**",     APPOINTMENT_SERVICE_URL, "Waitlist"));
+app.use("/api/v1/appointments", createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Appointment Service")));
+app.use("/api/v1/schedules",    createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Schedules")));
+app.use("/api/v1/vetblocks",    createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Vetblocks")));
+app.use("/api/v1/waitlist",     createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Waitlist")));
 
 // ─── 404 para rutas no registradas ───────────────────────────────────────────
 app.use((req, res) => {
@@ -125,14 +125,10 @@ const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
 });
 
-// Igualar keep-alive al timeout de Railway para evitar 502 intermitentes
 server.keepAliveTimeout = 120 * 1000;
 server.headersTimeout   = 125 * 1000;
 
 // ─── Señales del sistema ──────────────────────────────────────────────────────
-process.on("SIGTERM", () => {
-  console.info("SIGTERM received — shutting down gracefully.");
-  process.exit(0);
-});
+process.on("SIGTERM",           () => { console.info("SIGTERM received."); process.exit(0); });
 process.on("uncaughtException",  (err)    => console.error("[uncaughtException]",  err));
 process.on("unhandledRejection", (reason) => console.error("[unhandledRejection]", reason));
