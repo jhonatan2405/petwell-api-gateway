@@ -60,7 +60,9 @@ app.use('/', appointmentRoutes);
 // ─── Non-proxied routes (body parsing is fine here) ──────────────────────────
 app.use(express.json());
 
-// Health check
+// Health checks (Railway often probes / natively)
+app.get("/", (req, res) => res.send("PetWell API Gateway is running!"));
+
 app.get("/health", (req, res) => {
   res.json({ status: "ok", gateway: "PetWell API Gateway", port: PORT });
 });
@@ -68,10 +70,6 @@ app.get("/health", (req, res) => {
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
-  console.log(`   → User Service: ${process.env.USER_SERVICE_URL}`);
-  console.log(`   → Pet Service:  ${process.env.PET_SERVICE_URL}`);
-  console.log(`   → EHR Service:         ${process.env.EHR_SERVICE_URL || 'http://localhost:3004'}`);
-  console.log(`   → Appointment Service: ${process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3005'}`);
 });
 
 // Evitar que Railway o un error mate la app inmediatamente (graceful mode)
