@@ -13,17 +13,31 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // ─── CORS – must be before any route/proxy ────────────────────────────────────
-app.use(
-  cors({
-    origin: "*", // tighten in production
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+  : [];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como Postman, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`CORS Error: Origin ${origin} is not allowed`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+};
+
+app.use(cors(corsOptions));
 
 // Pre-flight: answer all OPTIONS requests immediately
-app.options("*", cors());
+app.options("*", cors(corsOptions));
 
 // Logging & security (no body-parser here – proxied requests must keep their body stream intact)
 app.use(helmet());
