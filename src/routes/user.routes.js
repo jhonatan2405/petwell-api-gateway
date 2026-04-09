@@ -38,6 +38,9 @@ const makeProxy = (serviceName) =>
     },
   });
 
+// Proxy → /api/v1/auth   → User Service
+router.use("/api/v1/auth", makeProxy("Auth (User Service)"));
+
 // Proxy → /api/v1/users  → User Service
 router.use("/api/v1/users", makeProxy("User Service"));
 

@@ -56,8 +56,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// ─── Health checks FIRST — before proxies so Railway always gets a response ───
+app.get("/", (req, res) => res.send("PetWell API Gateway is running!"));
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", gateway: "PetWell API Gateway", port: PORT });
+});
+
 // ─── Routes (proxy middleware – no express.json() before these) ───────────────
-// userRoutes handles /api/v1/users AND /api/v1/clinics (both → User Service)
+// userRoutes handles /api/v1/auth, /api/v1/users AND /api/v1/clinics (→ User Service)
 app.use(userRoutes);
 app.use(petRoutes);
 app.use('/', ehrRoutes);
@@ -66,17 +72,14 @@ app.use('/', appointmentRoutes);
 // ─── Non-proxied routes (body parsing is fine here) ──────────────────────────
 app.use(express.json());
 
-// Health checks (Railway often probes / natively)
-app.get("/", (req, res) => res.send("PetWell API Gateway is running!"));
-
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", gateway: "PetWell API Gateway", port: PORT });
-});
-
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
 });
+
+// Railway cierra conexiones idle con keep-alive de 5s — igualamos el timeout
+server.keepAliveTimeout = 120 * 1000;
+server.headersTimeout = 125 * 1000;
 
 // Evitar que Railway o un error mate la app inmediatamente (graceful mode)
 process.on('SIGTERM', () => {
