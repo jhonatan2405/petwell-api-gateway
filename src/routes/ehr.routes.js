@@ -10,6 +10,7 @@ const EHR_SERVICE_URL = process.env.EHR_SERVICE_URL && process.env.EHR_SERVICE_U
 if (!EHR_SERVICE_URL.startsWith("http")) {
   throw new Error(`CRITICAL: EHR_SERVICE_URL is invalid -> "${EHR_SERVICE_URL}"`);
 }
+console.log('[ehr.routes] EHR Service URL:', EHR_SERVICE_URL);
 
 const ehrProxy = createProxyMiddleware({
   target: EHR_SERVICE_URL,

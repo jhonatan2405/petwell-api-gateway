@@ -10,6 +10,7 @@ const APPOINTMENT_SERVICE_URL = process.env.APPOINTMENT_SERVICE_URL && process.e
 if (!APPOINTMENT_SERVICE_URL.startsWith("http")) {
   throw new Error(`CRITICAL: APPOINTMENT_SERVICE_URL is invalid -> "${APPOINTMENT_SERVICE_URL}"`);
 }
+console.log('[appointment.routes] Appointment Service URL:', APPOINTMENT_SERVICE_URL);
 
 const appointmentProxy = createProxyMiddleware({
   target: APPOINTMENT_SERVICE_URL,

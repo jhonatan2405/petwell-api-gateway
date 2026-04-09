@@ -9,6 +9,7 @@ const USER_SERVICE_URL = process.env.USER_SERVICE_URL && process.env.USER_SERVIC
 if (!USER_SERVICE_URL.startsWith("http")) {
   throw new Error(`CRITICAL: USER_SERVICE_URL is invalid -> "${USER_SERVICE_URL}"`);
 }
+console.log('[user.routes] User Service URL:', USER_SERVICE_URL);
 
 const router = express.Router();
 

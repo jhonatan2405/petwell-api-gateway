@@ -9,6 +9,7 @@ const PET_SERVICE_URL = process.env.PET_SERVICE_URL && process.env.PET_SERVICE_U
 if (!PET_SERVICE_URL.startsWith("http")) {
   throw new Error(`CRITICAL: PET_SERVICE_URL is invalid -> "${PET_SERVICE_URL}"`);
 }
+console.log('[pet.routes] Pet Service URL:', PET_SERVICE_URL);
 
 const router = express.Router();
 
