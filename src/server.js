@@ -13,9 +13,15 @@ const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
 // ─── CORS – must be before any route/proxy ────────────────────────────────────
-const allowedOrigins = process.env.ALLOWED_ORIGINS 
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim())
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
   : [];
+
+if (allowedOrigins.length === 0) {
+  console.warn('⚠️  WARNING: ALLOWED_ORIGINS is not set! ALL browser requests will be blocked by CORS.');
+} else {
+  console.log('✅ CORS allowed origins:', allowedOrigins);
+}
 
 const corsOptions = {
   origin: function (origin, callback) {
@@ -25,7 +31,7 @@ const corsOptions = {
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      console.warn(`CORS Error: Origin ${origin} is not allowed`);
+      console.warn(`[CORS] Blocked: ${origin} — not in ALLOWED_ORIGINS`);
       callback(new Error('Not allowed by CORS'));
     }
   },
