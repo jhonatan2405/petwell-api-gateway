@@ -10,7 +10,7 @@ const ehrRoutes = require("./routes/ehr.routes");
 const appointmentRoutes = require('./routes/appointment.routes');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = parseInt(process.env.PORT, 10) || 3001;
 
 // ─── CORS – must be before any route/proxy ────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
@@ -66,10 +66,16 @@ app.get("/health", (req, res) => {
 });
 
 // Start server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
   console.log(`   → User Service: ${process.env.USER_SERVICE_URL}`);
   console.log(`   → Pet Service:  ${process.env.PET_SERVICE_URL}`);
   console.log(`   → EHR Service:         ${process.env.EHR_SERVICE_URL || 'http://localhost:3004'}`);
   console.log(`   → Appointment Service: ${process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3005'}`);
+});
+
+// Evitar que Railway o un error mate la app inmediatamente (graceful mode)
+process.on('SIGTERM', () => {
+  console.info('SIGTERM signal received.');
+  process.exit(0);
 });
