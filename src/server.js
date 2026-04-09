@@ -8,36 +8,28 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3001;
 
-// ─── Validación y lectura de URLs de microservicios ───────────────────────────
+// ─── URLs de microservicios (con fallback a localhost para desarrollo local) ──
 const USER_SERVICE_URL =
-  process.env.USER_SERVICE_URL &&
-  process.env.USER_SERVICE_URL !== "undefined" &&
-  process.env.USER_SERVICE_URL.startsWith("http")
+  process.env.USER_SERVICE_URL?.startsWith("http")
     ? process.env.USER_SERVICE_URL
     : "http://localhost:3003";
 
 const PET_SERVICE_URL =
-  process.env.PET_SERVICE_URL &&
-  process.env.PET_SERVICE_URL !== "undefined" &&
-  process.env.PET_SERVICE_URL.startsWith("http")
+  process.env.PET_SERVICE_URL?.startsWith("http")
     ? process.env.PET_SERVICE_URL
     : "http://localhost:3002";
 
 const EHR_SERVICE_URL =
-  process.env.EHR_SERVICE_URL &&
-  process.env.EHR_SERVICE_URL !== "undefined" &&
-  process.env.EHR_SERVICE_URL.startsWith("http")
+  process.env.EHR_SERVICE_URL?.startsWith("http")
     ? process.env.EHR_SERVICE_URL
     : "http://localhost:3004";
 
 const APPOINTMENT_SERVICE_URL =
-  process.env.APPOINTMENT_SERVICE_URL &&
-  process.env.APPOINTMENT_SERVICE_URL !== "undefined" &&
-  process.env.APPOINTMENT_SERVICE_URL.startsWith("http")
+  process.env.APPOINTMENT_SERVICE_URL?.startsWith("http")
     ? process.env.APPOINTMENT_SERVICE_URL
     : "http://localhost:3005";
 
-console.log("[Gateway] Service URLs at startup:");
+console.log("[Gateway] Microservice targets:");
 console.log("  User Service       :", USER_SERVICE_URL);
 console.log("  Pet Service        :", PET_SERVICE_URL);
 console.log("  EHR Service        :", EHR_SERVICE_URL);
@@ -49,15 +41,14 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   : [];
 
 if (allowedOrigins.length === 0) {
-  console.warn("⚠️  ALLOWED_ORIGINS not set — ALL browser requests will be blocked by CORS.");
+  console.warn("⚠️  ALLOWED_ORIGINS not set — all browser requests will be blocked by CORS.");
 } else {
   console.log("✅ CORS allowed origins:", allowedOrigins);
 }
 
 const corsOptions = {
   origin: function (origin, callback) {
-    // Permitir requests sin origin (Postman, curl, etc.)
-    if (!origin) return callback(null, true);
+    if (!origin) return callback(null, true); // Postman / curl
     if (allowedOrigins.includes(origin)) return callback(null, true);
     console.warn(`[CORS] Blocked: ${origin}`);
     callback(new Error("Not allowed by CORS"));
@@ -67,90 +58,81 @@ const corsOptions = {
   credentials: true,
 };
 
-// CORS y preflight — ANTES de todo
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+app.options("*", cors(corsOptions)); // preflight
 
 // ─── Middlewares generales ────────────────────────────────────────────────────
 app.use(helmet());
 app.use(morgan("dev"));
-
-// Logger global
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`[Gateway] ${req.method} ${req.originalUrl}`);
   next();
 });
 
 // ─── Health checks — ANTES de los proxies ────────────────────────────────────
-app.get("/", (req, res) => res.send("PetWell API Gateway is running!"));
-app.get("/health", (req, res) =>
+app.get("/", (_req, res) => res.send("PetWell API Gateway is running!"));
+app.get("/health", (_req, res) =>
   res.json({ status: "ok", gateway: "PetWell API Gateway", port: PORT })
 );
 
-// ─── Helper: crea proxy con manejo de errores integrado ──────────────────────
-function makeProxy(target, label) {
+// ─── Factory de proxy con pathFilter explícito ───────────────────────────────
+// Usando pathFilter dentro de las opciones en lugar de app.use('/path', proxy)
+// Esto hace que:
+//   1. HPM muestre la ruta correcta en los logs: [HPM] Proxy created: /api/v1/auth -> ...
+//   2. El path completo llegue intacto al microservicio de destino
+function makeProxy(pathFilter, target, label) {
   return createProxyMiddleware({
     target,
     changeOrigin: true,
+    pathFilter,           // ← HPM filtra por esta ruta, no Express
     on: {
       proxyReq: (proxyReq) => {
-        // Eliminar content-length para que http-proxy-middleware lo recalcule
-        // y evitar que POST bodies se pierdan o causen timeouts
         proxyReq.removeHeader("content-length");
       },
-      error: (err, req, res) => {
+      error: (err, _req, res) => {
         console.error(`[${label} Proxy Error]`, err.message);
-        res.status(502).json({
-          success: false,
-          message: `${label} no disponible`,
-        });
+        res.status(502).json({ success: false, message: `${label} no disponible` });
       },
     },
   });
 }
 
-// ─── Proxies con rutas base explícitas (sin usar "/" como base) ───────────────
+// ─── Proxies — montados en app.use(proxy) SIN path prefix en Express ─────────
 // User Service
-app.use("/api/v1/auth",    makeProxy(USER_SERVICE_URL, "Auth"));
-app.use("/api/v1/users",   makeProxy(USER_SERVICE_URL, "User Service"));
-app.use("/api/v1/clinics", makeProxy(USER_SERVICE_URL, "User Service (clinics)"));
+app.use(makeProxy("/api/v1/auth/**",    USER_SERVICE_URL, "Auth"));
+app.use(makeProxy("/api/v1/users/**",   USER_SERVICE_URL, "User Service"));
+app.use(makeProxy("/api/v1/clinics/**", USER_SERVICE_URL, "Clinics"));
 
 // Pet Service
-app.use("/api/v1/pets", makeProxy(PET_SERVICE_URL, "Pet Service"));
+app.use(makeProxy("/api/v1/pets/**",    PET_SERVICE_URL, "Pet Service"));
 
 // EHR Service
-app.use("/api/v1/ehr", makeProxy(EHR_SERVICE_URL, "EHR Service"));
+app.use(makeProxy("/api/v1/ehr/**",     EHR_SERVICE_URL, "EHR Service"));
 
 // Appointment Service
-app.use("/api/v1/appointments", makeProxy(APPOINTMENT_SERVICE_URL, "Appointment Service"));
-app.use("/api/v1/schedules",    makeProxy(APPOINTMENT_SERVICE_URL, "Appointment Service (schedules)"));
-app.use("/api/v1/vetblocks",    makeProxy(APPOINTMENT_SERVICE_URL, "Appointment Service (vetblocks)"));
-app.use("/api/v1/waitlist",     makeProxy(APPOINTMENT_SERVICE_URL, "Appointment Service (waitlist)"));
+app.use(makeProxy("/api/v1/appointments/**", APPOINTMENT_SERVICE_URL, "Appointment Service"));
+app.use(makeProxy("/api/v1/schedules/**",    APPOINTMENT_SERVICE_URL, "Schedules"));
+app.use(makeProxy("/api/v1/vetblocks/**",    APPOINTMENT_SERVICE_URL, "Vetblocks"));
+app.use(makeProxy("/api/v1/waitlist/**",     APPOINTMENT_SERVICE_URL, "Waitlist"));
 
 // ─── 404 para rutas no registradas ───────────────────────────────────────────
 app.use((req, res) => {
   res.status(404).json({ success: false, message: `Route not found: ${req.originalUrl}` });
 });
 
-// ─── Iniciar servidor ─────────────────────────────────────────────────────────
+// ─── Servidor ─────────────────────────────────────────────────────────────────
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`🚀 API Gateway running on port ${PORT}`);
 });
 
-// Igualar keep-alive al timeout de Railway (~100s) para evitar 502 intermitentes
+// Igualar keep-alive al timeout de Railway para evitar 502 intermitentes
 server.keepAliveTimeout = 120 * 1000;
-server.headersTimeout = 125 * 1000;
+server.headersTimeout   = 125 * 1000;
 
-// ─── Manejo de señales del sistema ───────────────────────────────────────────
+// ─── Señales del sistema ──────────────────────────────────────────────────────
 process.on("SIGTERM", () => {
   console.info("SIGTERM received — shutting down gracefully.");
   process.exit(0);
 });
-
-process.on("uncaughtException", (err) => {
-  console.error("[uncaughtException]", err);
-});
-
-process.on("unhandledRejection", (reason) => {
-  console.error("[unhandledRejection]", reason);
-});
+process.on("uncaughtException",  (err)    => console.error("[uncaughtException]",  err));
+process.on("unhandledRejection", (reason) => console.error("[unhandledRejection]", reason));
