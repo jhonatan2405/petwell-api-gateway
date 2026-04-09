@@ -79,3 +79,11 @@ process.on('SIGTERM', () => {
   console.info('SIGTERM signal received.');
   process.exit(0);
 });
+
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException] Global error caught:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[unhandledRejection] Unhandled Promise Rejection:', reason);
+});

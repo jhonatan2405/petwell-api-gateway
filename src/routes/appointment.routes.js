@@ -3,8 +3,16 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 const router = express.Router();
 
+const APPOINTMENT_SERVICE_URL = process.env.APPOINTMENT_SERVICE_URL && process.env.APPOINTMENT_SERVICE_URL !== "undefined"
+  ? process.env.APPOINTMENT_SERVICE_URL 
+  : "http://localhost:3005";
+
+if (!APPOINTMENT_SERVICE_URL.startsWith("http")) {
+  throw new Error(`CRITICAL: APPOINTMENT_SERVICE_URL is invalid -> "${APPOINTMENT_SERVICE_URL}"`);
+}
+
 const appointmentProxy = createProxyMiddleware({
-  target: process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3005',
+  target: APPOINTMENT_SERVICE_URL,
   changeOrigin: true,
   on: {
     proxyReq: (proxyReq, req) => {

@@ -2,7 +2,13 @@ const { createProxyMiddleware } = require("http-proxy-middleware");
 const express = require("express");
 require("dotenv").config();
 
-const USER_SERVICE_URL = process.env.USER_SERVICE_URL || "http://localhost:3003";
+const USER_SERVICE_URL = process.env.USER_SERVICE_URL && process.env.USER_SERVICE_URL !== "undefined" 
+  ? process.env.USER_SERVICE_URL 
+  : "http://localhost:3003";
+
+if (!USER_SERVICE_URL.startsWith("http")) {
+  throw new Error(`CRITICAL: USER_SERVICE_URL is invalid -> "${USER_SERVICE_URL}"`);
+}
 
 const router = express.Router();
 
