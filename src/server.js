@@ -29,11 +29,35 @@ const APPOINTMENT_SERVICE_URL =
     ? process.env.APPOINTMENT_SERVICE_URL
     : "http://localhost:3005";
 
+const TELEMED_SERVICE_URL =
+  process.env.TELEMED_SERVICE_URL?.startsWith("http")
+    ? process.env.TELEMED_SERVICE_URL
+    : "http://localhost:3006";
+
+const NOTIFICATION_SERVICE_URL =
+  process.env.NOTIFICATION_SERVICE_URL?.startsWith("http")
+    ? process.env.NOTIFICATION_SERVICE_URL
+    : "http://localhost:3007";
+
+const BILLING_SERVICE_URL =
+  process.env.BILLING_SERVICE_URL?.startsWith("http")
+    ? process.env.BILLING_SERVICE_URL
+    : "http://localhost:3009";
+
+const ANALYTICS_SERVICE_URL =
+  process.env.ANALYTICS_SERVICE_URL?.startsWith("http")
+    ? process.env.ANALYTICS_SERVICE_URL
+    : "http://localhost:3008";
+
 console.log("[Gateway] Microservice targets:");
 console.log("  User Service       :", USER_SERVICE_URL);
 console.log("  Pet Service        :", PET_SERVICE_URL);
 console.log("  EHR Service        :", EHR_SERVICE_URL);
 console.log("  Appointment Service:", APPOINTMENT_SERVICE_URL);
+console.log("  Telemed Service    :", TELEMED_SERVICE_URL);
+console.log("  Notification Service:", NOTIFICATION_SERVICE_URL);
+console.log("  Billing Service    :", BILLING_SERVICE_URL);
+console.log("  Analytics Service  :", ANALYTICS_SERVICE_URL);
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = process.env.ALLOWED_ORIGINS
@@ -114,6 +138,27 @@ app.use("/api/v1/appointments", createProxyMiddleware(proxyOptions(APPOINTMENT_S
 app.use("/api/v1/schedules",    createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Schedules")));
 app.use("/api/v1/vetblocks",    createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Vetblocks")));
 app.use("/api/v1/waitlist",     createProxyMiddleware(proxyOptions(APPOINTMENT_SERVICE_URL, "Waitlist")));
+
+// Telemed Service
+app.use("/api/v1/telemed",      createProxyMiddleware(proxyOptions(TELEMED_SERVICE_URL, "Telemed Service")));
+
+// Notification Service
+app.use(
+  "/api/v1/notifications",
+  createProxyMiddleware(proxyOptions(NOTIFICATION_SERVICE_URL, "Notification Service"))
+);
+
+// Billing Service
+app.use(
+  "/api/v1/billing",
+  createProxyMiddleware(proxyOptions(BILLING_SERVICE_URL, "Billing Service"))
+);
+
+// Analytics Service
+app.use(
+  "/api/v1/analytics",
+  createProxyMiddleware(proxyOptions(ANALYTICS_SERVICE_URL, "Analytics Service"))
+);
 
 // ─── 404 para rutas no registradas ───────────────────────────────────────────
 app.use((req, res) => {

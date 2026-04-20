@@ -1,6 +1,6 @@
 =========================================================
   PetWell — API Gateway | Documento de ContextIA
-  Última actualización: 2026-04-08 (v2.0)
+  Última actualización: 2026-04-13 (v2.1)
 =========================================================
 
 Este documento resume el estado completo del API Gateway
@@ -55,6 +55,8 @@ Todos los proxies están consolidados en server.js.
   Pet Service        : http://localhost:3002  Render
   EHR Service        : http://localhost:3004  Railway
   Appointment Service: http://localhost:3005  Render
+  Telemed Service    : http://localhost:3006  Railway (pendiente)
+  Notification Service:http://localhost:3007  Railway (pendiente)
 
 ─────────────────────────────────────────────────────────
 5. RUTAS MANEJADAS POR EL GATEWAY
@@ -79,6 +81,8 @@ Tabla de rutas registradas en server.js:
   /api/v1/schedules/**     →  Appointment Service
   /api/v1/vetblocks/**     →  Appointment Service
   /api/v1/waitlist/**      →  Appointment Service
+  /api/v1/telemed/**       →  Telemed Service
+  /api/v1/notifications/** →  Notification Service
 
 Rutas propias del gateway (sin proxy):
   GET  /        → "PetWell API Gateway is running!"
@@ -108,6 +112,8 @@ USER_SERVICE_URL=http://localhost:3003
 PET_SERVICE_URL=http://localhost:3002
 EHR_SERVICE_URL=http://localhost:3004
 APPOINTMENT_SERVICE_URL=http://localhost:3005
+TELEMED_SERVICE_URL=http://localhost:3006
+NOTIFICATION_SERVICE_URL=http://localhost:3007
 ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 
 # Railway (producción)
@@ -116,6 +122,8 @@ USER_SERVICE_URL        → https://petwell-user-service-production.up.railway.a
 PET_SERVICE_URL         → https://petwell-pet-service.onrender.com
 EHR_SERVICE_URL         → https://petwell-ehr-service-production.up.railway.app
 APPOINTMENT_SERVICE_URL → https://petwell-appointment-service.onrender.com
+TELEMED_SERVICE_URL     → https://petwell-telemed-service-production.up.railway.app
+NOTIFICATION_SERVICE_URL→ https://petwell-notification-service.up.railway.app
 ALLOWED_ORIGINS         → https://petwell-green.vercel.app,http://localhost:3000
 
 ─────────────────────────────────────────────────────────
@@ -140,8 +148,10 @@ ALLOWED_ORIGINS         → https://petwell-green.vercel.app,http://localhost:30
   2. Pet Service          (puerto 3002)
   3. EHR Service          (puerto 3004)
   4. Appointment Service  (puerto 3005)
-  5. API Gateway          (puerto 3001)
-  6. Frontend             (puerto 3000)
+  5. Telemed Service      (puerto 3006)
+  6. Notification Service (puerto 3007)
+  7. API Gateway          (puerto 3001)
+  8. Frontend             (puerto 3000)
 
 ─────────────────────────────────────────────────────────
 10. CONSIDERACIONES DE PRODUCCIÓN (RAILWAY)
@@ -160,6 +170,18 @@ ALLOWED_ORIGINS         → https://petwell-green.vercel.app,http://localhost:30
 ─────────────────────────────────────────────────────────
 CHANGELOG
 ─────────────────────────────────────────────────────────
+v2.2 — 2026-04-13
+  * Integración Notification Service (puerto 3007)
+  * Nueva variable de entorno: NOTIFICATION_SERVICE_URL
+  * Nueva ruta proxy: /api/v1/notifications → Notification Service
+
+v2.1 — 2026-04-13
+  * Integración Telemed Service (puerto 3006)
+  * Nueva variable de entorno: TELEMED_SERVICE_URL
+  * Nueva ruta proxy: /api/v1/telemed → Telemed Service
+  * Log de arranque actualizado para incluir Telemed Service
+  * contextIA.txt actualizado: rutas, servicios y startup order
+
 v2.0 — 2026-04-08
   * REFACTOR MAYOR: todos los proxies consolidados en server.js
   * Eliminados los archivos src/routes/*.routes.js (ya no se usan)
