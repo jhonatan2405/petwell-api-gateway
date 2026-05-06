@@ -4,6 +4,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { createProxyMiddleware } = require("http-proxy-middleware");
+const promBundle = require("express-prom-bundle");
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3001;
@@ -92,6 +93,20 @@ app.use((req, _res, next) => {
   console.log(`[Gateway] ${req.method} ${req.originalUrl}`);
   next();
 });
+
+// ─── Monitoreo (Prometheus) ───────────────────────────────────────────────────
+// Expondrá automáticamente las métricas de este servicio en /metrics
+// Y medirá la duración de las peticiones HTTP
+const metricsMiddleware = promBundle({
+  includeMethod: true,
+  includePath: true,
+  includeStatusCode: true,
+  includeUp: true,
+  promClient: {
+    collectDefaultMetrics: {} // Recolecta métricas de CPU/RAM de Node.js
+  }
+});
+app.use(metricsMiddleware);
 
 // ─── Health checks — ANTES de los proxies ────────────────────────────────────
 app.get("/", (_req, res) => res.send("PetWell API Gateway is running!"));
